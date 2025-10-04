@@ -1,0 +1,55 @@
+# Decisión arquitectónica: Simplificación de clases a funciones modulares para separation of concerns (Viewpoint: Implementación)
+from decimal import Decimal
+
+IVA = Decimal("0.16")  # Constante para IVA (fácil configuración; Viewpoint: Datos)
+
+def obtener_numero_positivo(mensaje: str, tipo=float) -> float:
+    # Función para validación de entradas numéricas (Viewpoint: Implementación)
+    while True:
+        try:
+            valor = tipo(input(mensaje).strip())
+            if valor >= 0:  # Permitimos 0 para casos donde no se vendan unidades
+                return valor if tipo == float else Decimal(str(valor))
+            else:
+                print("El valor debe ser no negativo.")
+        except ValueError:
+            print(f"Entrada inválida. Debe ser un {'número decimal' if tipo == float else 'entero'}.")
+
+def obtener_datos_venta(numero_cliente: int) -> tuple[str, str, Decimal, int]:
+    # Componente para entrada de datos de venta por cliente (Viewpoint: Funcional)
+    print(f"Cliente #{numero_cliente}")
+    codigo = input("Código del cliente: ").strip()
+    nombre = input("Nombre del cliente: ").strip()
+    precio_por_unidad = Decimal(str(obtener_numero_positivo("Precio por balón: ")))
+    unidades = int(obtener_numero_positivo("¿Cuántas unidades llevó? ", tipo=int))
+    return codigo, nombre, precio_por_unidad, unidades
+
+def calcular_subtotal(precio_por_unidad: Decimal, unidades: int) -> Decimal:
+    # Cálculo para venta por unidad con IVA (Viewpoint: Datos)
+    subtotal = precio_por_unidad * unidades
+    return subtotal * (1 + IVA)
+
+def main():
+    # Módulo principal (orquesta flujo; Viewpoint: Funcional)
+    ventas = []  # Lista para trazabilidad (Viewpoint: Datos)
+    subtotales = []  # Lista para subtotales por venta
+
+    numero_clientes = int(obtener_numero_positivo("¿Cuántos clientes se tuvieron? ", tipo=int))
+    for i in range(numero_clientes):
+        codigo, nombre, precio_por_unidad, unidades = obtener_datos_venta(i + 1)
+        subtotal = calcular_subtotal(precio_por_unidad, unidades)
+        ventas.append((codigo, nombre, subtotal))  # Almacenar datos para mostrar
+        subtotales.append(subtotal)
+        print(f"Subtotal (con IVA) para Cliente #{i+1}: ${subtotal:.2f}")
+
+    # Mostrar información de todas las ventas
+    print("\n--- Registro de Ventas ---")
+    for codigo, nombre, subtotal in ventas:
+        print(f" - Código: {codigo}, Nombre: {nombre}, Subtotal (con IVA): ${subtotal:.2f}")
+
+    # Calcular promedio de las ventas
+    promedio_ventas = sum(subtotales) / len(subtotales) if subtotales else Decimal("0")
+    print(f"\nEl promedio de las ventas (con IVA) es: ${promedio_ventas:.2f}")
+
+if __name__ == "__main__":
+    main()
