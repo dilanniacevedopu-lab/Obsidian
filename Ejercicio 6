@@ -1,0 +1,91 @@
+# Decisión arquitectónica: Simplificación de clases a funciones modulares para separation of concerns (Viewpoint: Implementación)
+from decimal import Decimal
+
+IVA = Decimal("0.16")  # Constante para IVA (fácil configuración; Viewpoint: Datos)
+
+def obtener_numero_positivo(mensaje: str, tipo=float) -> float:
+    # Función para validación de entradas numéricas (Viewpoint: Implementación)
+    while True:
+        try:
+            valor = tipo(input(mensaje).strip())
+            if valor > 0:
+                return valor if tipo == float else Decimal(str(valor))
+            else:
+                print("El valor debe ser positivo.")
+        except ValueError:
+            print(f"Entrada inválida. Debe ser un {'número decimal' if tipo == float else 'entero'}.")
+
+def obtener_datos_venta_fija(numero_cliente: int) -> tuple[Decimal, int]:
+    # Componente para entrada de datos de venta fija (Viewpoint: Funcional)
+    print(f"Cliente #{numero_cliente} - Venta Fija")
+    precio_fijo = Decimal(str(obtener_numero_positivo("Precio fijo de la venta: ")))
+    unidades = int(obtener_numero_positivo("¿Cuántas unidades llevó? ", tipo=int))
+    return precio_fijo, unidades
+
+def obtener_datos_venta_por_unidad(numero_cliente: int) -> tuple[Decimal, int]:
+    # Componente para entrada de datos de venta por unidad (Viewpoint: Funcional)
+    print(f"Cliente #{numero_cliente} - Venta por Unidad")
+    precio_por_unidad = Decimal(str(obtener_numero_positivo("Precio por balón: ")))
+    unidades = int(obtener_numero_positivo("¿Cuántas unidades llevó? ", tipo=int))
+    return precio_por_unidad, unidades
+
+def obtener_datos_venta_por_volumen(numero_cliente: int) -> tuple[Decimal, Decimal, int]:
+    # Componente para entrada de datos de venta por volumen con bonificación (Viewpoint: Funcional)
+    print(f"Cliente #{numero_cliente} - Venta por Volumen con Bonificación")
+    precio_base = Decimal(str(obtener_numero_positivo("Precio base de la venta: ")))
+    porcentaje_bonificacion = Decimal(str(obtener_numero_positivo("Porcentaje de bonificación (ej. 10 o 0.10): ")))
+    p = porcentaje_bonificacion / 100 if porcentaje_bonificacion > 1 else porcentaje_bonificacion
+    if p < 0:
+        raise ValueError("El porcentaje no puede ser negativo")
+    unidades = int(obtener_numero_positivo("¿Cuántas unidades llevó? ", tipo=int))
+    return precio_base, p, unidades
+
+def calcular_subtotal_venta_fija(precio_fijo: Decimal, unidades: int) -> Decimal:
+    # Cálculo para venta fija con IVA (Viewpoint: Datos)
+    subtotal = precio_fijo * unidades
+    return subtotal * (1 + IVA)
+
+def calcular_subtotal_venta_por_unidad(precio_por_unidad: Decimal, unidades: int) -> Decimal:
+    # Cálculo para venta por unidad con IVA (Viewpoint: Datos)
+    subtotal = precio_por_unidad * unidades
+    return subtotal * (1 + IVA)
+
+def calcular_subtotal_venta_por_volumen(precio_base: Decimal, porcentaje_bonificacion: Decimal, unidades: int) -> Decimal:
+    # Cálculo para venta por volumen con bonificación e IVA (Viewpoint: Datos)
+    subtotal = precio_base * unidades
+    bonificacion = subtotal * porcentaje_bonificacion
+    return (subtotal + bonificacion) * (1 + IVA)
+
+def main():
+    # Módulo principal (orquesta flujo; Viewpoint: Funcional)
+    total = Decimal("0")
+    subtotales = []  # Lista para trazabilidad (Viewpoint: Datos)
+
+    numero_clientes_fijos = int(obtener_numero_positivo("¿Cuántos clientes con venta fija? ", tipo=int))
+    for i in range(numero_clientes_fijos):
+        precio_fijo, unidades = obtener_datos_venta_fija(i + 1)
+        subtotal = calcular_subtotal_venta_fija(precio_fijo, unidades)
+        subtotales.append(subtotal)
+        print(f"Subtotal (con IVA) para Cliente #{i+1}: ${subtotal:.2f}")
+        total += subtotal
+
+    numero_clientes_unidad = int(obtener_numero_positivo("¿Cuántos clientes con venta por unidad? ", tipo=int))
+    for i in range(numero_clientes_unidad):
+        precio_por_unidad, unidades = obtener_datos_venta_por_unidad(i + 1)
+        subtotal = calcular_subtotal_venta_por_unidad(precio_por_unidad, unidades)
+        subtotales.append(subtotal)
+        print(f"Subtotal (con IVA) para Cliente #{i+1}: ${subtotal:.2f}")
+        total += subtotal
+
+    numero_clientes_volumen = int(obtener_numero_positivo("¿Cuántos clientes con venta por volumen? ", tipo=int))
+    for i in range(numero_clientes_volumen):
+        precio_base, porcentaje_bonificacion, unidades = obtener_datos_venta_por_volumen(i + 1)
+        subtotal = calcular_subtotal_venta_por_volumen(precio_base, porcentaje_bonificacion, unidades)
+        subtotales.append(subtotal)
+        print(f"Subtotal (con IVA) para Cliente #{i+1}: ${subtotal:.2f}")
+        total += subtotal
+
+    print(f"El total de las ventas (con IVA) fue de ${total:.2f}")
+
+if __name__ == "__main__":
+    main()
