@@ -1,0 +1,171 @@
+# Decisión arquitectónica: Simplificación de clases a funciones modulares para separation of concerns (Viewpoint: Implementación)
+import json
+from decimal import Decimal
+
+IVA = Decimal("0.16")  # Constante para IVA (fácil configuración; Viewpoint: Datos)
+
+def obtener_numero_positivo(mensaje: str, tipo=float) -> float:
+    # Función para validación de entradas numéricas (Viewpoint: Implementación)
+    while True:
+        try:
+            valor = tipo(input(mensaje).strip())
+            if valor >= 0:  # Permitimos 0 para casos donde no se vendan unidades
+                return valor if tipo == float else Decimal(str(valor))
+            else:
+                print("El valor debe ser no negativo.")
+        except ValueError:
+            print(f"Entrada inválida. Debe ser un {'número decimal' if tipo == float else 'entero'}.")
+
+def obtener_datos_venta_estandar(numero_cliente: int) -> tuple[str, str, list[Decimal], int]:
+    # Componente para entrada de datos de venta estándar (Viewpoint: Funcional)
+    print(f"Cliente #{numero_cliente} - Venta Estándar")
+    codigo = input("Código del cliente: ").strip()
+    nombre = input("Nombre del cliente: ").strip()
+    num_precios = int(obtener_numero_positivo("¿Cuántos precios diferentes por balón? ", tipo=int))
+    precios = [Decimal(str(obtener_numero_positivo(f"Precio #{i+1}: "))) for i in range(num_precios)]
+    unidades = int(obtener_numero_positivo("¿Cuántas unidades llevó? ", tipo=int))
+    return codigo, nombre, precios, unidades
+
+def obtener_datos_venta_bonificacion(numero_cliente: int) -> tuple[str, str, list[Decimal], int, Decimal]:
+    # Componente para entrada de datos de venta con bonificación (Viewpoint: Funcional)
+    print(f"Cliente #{numero_cliente} - Venta con Bonificación")
+    codigo = input("Código del cliente: ").strip()
+    nombre = input("Nombre del cliente: ").strip()
+    num_precios = int(obtener_numero_positivo("¿Cuántos precios diferentes por balón? ", tipo=int))
+    precios = [Decimal(str(obtener_numero_positivo(f"Precio #{i+1}: "))) for i in range(num_precios)]
+    unidades = int(obtener_numero_positivo("¿Cuántas unidades llevó? ", tipo=int))
+    bono = Decimal(str(obtener_numero_positivo("Bonificación (monto adicional): ")))
+    return codigo, nombre, precios, unidades, bono
+
+def obtener_datos_venta_maxima(numero_cliente: int) -> tuple[str, str, list[Decimal], int, Decimal]:
+    # Componente para entrada de datos de venta con precio máximo (Viewpoint: Funcional)
+    print(f"Cliente #{numero_cliente} - Venta con Precio Máximo")
+    codigo = input("Código del cliente: ").strip()
+    nombre = input("Nombre del cliente: ").strip()
+    num_precios = int(obtener_numero_positivo("¿Cuántos precios diferentes por balón? ", tipo=int))
+    precios = [Decimal(str(obtener_numero_positivo(f"Precio #{i+1}: "))) for i in range(num_precios)]
+    unidades = int(obtener_numero_positivo("¿Cuántas unidades llevó? ", tipo=int))
+    precio_maximo = Decimal(str(obtener_numero_positivo("Precio máximo por balón: ")))
+    return codigo, nombre, precios, unidades, precio_maximo
+
+def calcular_subtotal_estandar(precios: list[Decimal], unidades: int) -> Decimal:
+    # Cálculo para venta estándar con IVA (Viewpoint: Datos)
+    promedio_precios = sum(precios) / len(precios) if precios else Decimal("0")
+    subtotal = promedio_precios * unidades
+    return subtotal * (1 + IVA)
+
+def calcular_subtotal_bonificacion(precios: list[Decimal], unidades: int, bono: Decimal) -> Decimal:
+    # Cálculo para venta con bonificación con IVA (Viewpoint: Datos)
+    promedio_precios = sum(precios) / len(precios) if precios else Decimal("0")
+    subtotal = (promedio_precios * unidades) + bono
+    return subtotal * (1 + IVA)
+
+def calcular_subtotal_maxima(precios: list[Decimal], unidades: int, precio_maximo: Decimal) -> Decimal:
+    # Cálculo para venta con precio máximo con IVA (Viewpoint: Datos)
+    promedio_precios = sum(precios) / len(precios) if precios else Decimal("0")
+    subtotal = max(promedio_precios, precio_maximo) * unidades
+    return subtotal * (1 + IVA)
+
+def guardar_en_archivo(ventas: list, archivo: str):
+    # Persistencia de ventas en archivo JSON (Viewpoint: Datos)
+    datos = []
+    for venta in ventas:
+        tipo, codigo, nombre, subtotal, datos_extra = venta
+        dato = {"tipo": tipo, "codigo": codigo, "nombre": nombre, "subtotal": float(subtotal)}
+        if tipo == "estandar":
+            dato["precios"] = [float(p) for p in datos_extra["precios"]]
+            dato["unidades"] = datos_extra["unidades"]
+        elif tipo == "bonificacion":
+            dato["precios"] = [float(p) for p in datos_extra["precios"]]
+            dato["unidades"] = datos_extra["unidades"]
+            dato["bono"] = float(datos_extra["bono"])
+        elif tipo == "maxima":
+            dato["precios"] = [float(p) for p in datos_extra["precios"]]
+            dato["unidades"] = datos_extra["unidades"]
+            dato["precio_maximo"] = float(datos_extra["precio_maximo"])
+        datos.append(dato)
+    with open(archivo, "w", encoding="utf-8") as f:
+        json.dump(datos, f, indent=4)
+
+def cargar_desde_archivo(archivo: str) -> list:
+    # Carga de ventas desde archivo JSON (Viewpoint: Datos)
+    try:
+        with open(archivo, "r", encoding="utf-8") as f:
+            datos = json.load(f)
+            ventas = []
+            for d in datos:
+                tipo = d["tipo"]
+                codigo = d["codigo"]
+                nombre = d["nombre"]
+                subtotal = Decimal(str(d["subtotal"]))
+                if tipo == "estandar":
+                    precios = [Decimal(str(p)) for p in d["precios"]]
+                    unidades = d["unidades"]
+                    datos_extra = {"precios": precios, "unidades": unidades}
+                elif tipo == "bonificacion":
+                    precios = [Decimal(str(p)) for p in d["precios"]]
+                    unidades = d["unidades"]
+                    bono = Decimal(str(d["bono"]))
+                    datos_extra = {"precios": precios, "unidades": unidades, "bono": bono}
+                elif tipo == "maxima":
+                    precios = [Decimal(str(p)) for p in d["precios"]]
+                    unidades = d["unidades"]
+                    precio_maximo = Decimal(str(d["precio_maximo"]))
+                    datos_extra = {"precios": precios, "unidades": unidades, "precio_maximo": precio_maximo}
+                ventas.append((tipo, codigo, nombre, subtotal, datos_extra))
+            return ventas
+    except FileNotFoundError:
+        print("⚠️ No se encontró el archivo, se inicia con lista vacía.")
+        return []
+
+def main():
+    # Módulo principal (orquesta flujo; Viewpoint: Funcional)
+    ventas = []  # Lista para trazabilidad (Viewpoint: Datos)
+    subtotales = []  # Lista para subtotales por venta
+
+    # Cargar datos previos si existen
+    ventas = cargar_desde_archivo("ventas.json")
+
+    try:
+        num_estandar = int(obtener_numero_positivo("¿Cuántos clientes con venta estándar? ", tipo=int))
+        for i in range(num_estandar):
+            codigo, nombre, precios, unidades = obtener_datos_venta_estandar(i + 1)
+            subtotal = calcular_subtotal_estandar(precios, unidades)
+            ventas.append(("estandar", codigo, nombre, subtotal, {"precios": precios, "unidades": unidades}))
+            subtotales.append(subtotal)
+            print(f"Subtotal (con IVA) para Cliente #{i+1}: ${subtotal:.2f}")
+
+        num_bonificacion = int(obtener_numero_positivo("¿Cuántos clientes con venta con bonificación? ", tipo=int))
+        for i in range(num_bonificacion):
+            codigo, nombre, precios, unidades, bono = obtener_datos_venta_bonificacion(i + 1)
+            subtotal = calcular_subtotal_bonificacion(precios, unidades, bono)
+            ventas.append(("bonificacion", codigo, nombre, subtotal, {"precios": precios, "unidades": unidades, "bono": bono}))
+            subtotales.append(subtotal)
+            print(f"Subtotal (con IVA) para Cliente #{i+1}: ${subtotal:.2f}")
+
+        num_maxima = int(obtener_numero_positivo("¿Cuántos clientes con venta con precio máximo? ", tipo=int))
+        for i in range(num_maxima):
+            codigo, nombre, precios, unidades, precio_maximo = obtener_datos_venta_maxima(i + 1)
+            subtotal = calcular_subtotal_maxima(precios, unidades, precio_maximo)
+            ventas.append(("maxima", codigo, nombre, subtotal, {"precios": precios, "unidades": unidades, "precio_maximo": precio_maximo}))
+            subtotales.append(subtotal)
+            print(f"Subtotal (con IVA) para Cliente #{i+1}: ${subtotal:.2f}")
+
+    except ValueError:
+        print("Entrada inválida. Proceso interrumpido.")
+        return
+
+    # Mostrar información de todas las ventas
+    print("\n--- Registro de Ventas ---")
+    for tipo, codigo, nombre, subtotal, _ in ventas:
+        print(f"- {nombre} (Código: {codigo}, Tipo: {tipo.capitalize()}): Subtotal (con IVA) = ${subtotal:.2f}")
+
+    # Calcular promedio de las ventas
+    promedio_ventas = sum(subtotales) / len(subtotales) if subtotales else Decimal("0")
+    print(f"\nEl promedio de las ventas (con IVA) es: ${promedio_ventas:.2f}")
+
+    # Guardar datos en archivo JSON
+    guardar_en_archivo(ventas, "ventas.json")
+
+if __name__ == "__main__":
+    main()
